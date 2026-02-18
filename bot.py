@@ -9,7 +9,7 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 TARGET_CHANNEL_ID = 1316723939896066087
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('models/gemini-flash-latest')
+model = genai.GenerativeModel('models/gemini-1.5-flash')
 
 chat_sessions = {}
 intents = discord.Intents.default()
@@ -92,3 +92,4 @@ async def on_message(message):
 
 
 bot.run(DISCORD_TOKEN)
+
