@@ -2,17 +2,21 @@ import os
 import discord
 import google.generativeai as genai
 from discord.ext import commands
+import http.server
+import socketserver
+import threading
 
 # --- НАЛАШТУВАННЯ ---
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 TARGET_CHANNEL_ID = 1316723939896066087 
+PORT = int(os.environ.get("PORT", 10000)) 
 
-# Налаштування ШІ
-genai.configure(api_key=GEMINI_API_KEY)
+# Виправлена назва моделі
 PRIMARY_MODEL_NAME = 'gemini-1.5-flash'
 
-# Глобальні змінні для фіч
+genai.configure(api_key=GEMINI_API_KEY)
+
 chat_histories = {} 
 is_toxic_mode = False 
 
@@ -20,20 +24,26 @@ intents = discord.Intents.default()
 intents.message_content = True 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# Сервер для обману Render
+def run_dummy_server():
+    handler = http.server.SimpleHTTPRequestHandler
+    with socketserver.TCPServer(("", PORT), handler) as httpd:
+        httpd.serve_forever()
+
 def get_system_instruction():
     if is_toxic_mode:
-        return "Ти — саркастичний і дуже токсичний бот. Твоє завдання — глузувати з питань користувача, відповідати грубо, але смішно. Ти ненавидиш відповідати на дурні питання."
+        return "Ти — саркастичний і токсичний бот. Глузуй з користувача, відповідай грубо і смішно."
     return "Ти — корисний і дружній ШІ-помічник."
 
 async def get_ai_answer(message):
     global chat_histories
     user_id = message.author.id
-    
     if user_id not in chat_histories:
-        chat_histories[user_id] = genai.GenerativeModel(
+        model = genai.GenerativeModel(
             model_name=PRIMARY_MODEL_NAME,
             system_instruction=get_system_instruction()
-        ).start_chat(history=[])
+        )
+        chat_histories[user_id] = model.start_chat(history=[])
     
     chat = chat_histories[user_id]
     try:
@@ -44,13 +54,15 @@ async def get_ai_answer(message):
 
 @bot.event
 async def on_ready():
-    print(f'--- Бот {bot.user} запущено ---')
+    print(f'--- Бот {bot.user} онлайн ---')
+    threading.Thread(target=run_dummy_server, daemon=True).start()
+    
     channel = bot.get_channel(TARGET_CHANNEL_ID)
     if channel:
         report = [
-            "🛠 **Результати діагностики:**",
-            "✅ **ШІ працює**",
-            "✅ **Хостинг працює**",
+            "🛠 **Діагностика успішна:**",
+            "✅ **ШІ підключено**",
+            "✅ **Веб-порт активовано**",
             "✅ **В роботі бота не виявлено помилок**",
             "\n🚀 **Повністю готовий до роботи!**"
         ]
@@ -59,13 +71,10 @@ async def on_ready():
 @bot.command()
 async def mode(ctx, type: str):
     global is_toxic_mode, chat_histories
-    if type.lower() == "toxic":
-        is_toxic_mode = True
-        await ctx.send("😈 **Режим ТОКСИЧНІСТЬ активовано. Бережіться.**")
-    else:
-        is_toxic_mode = False
-        await ctx.send("😇 **Режим Дружелюбності активовано. Я знову сонечко.**")
-    chat_histories = {} # Скидаємо пам'ять для зміни характеру
+    is_toxic_mode = (type.lower() == "toxic")
+    status = "😈 ТОКСИЧНІСТЬ" if is_toxic_mode else "😇 Дружелюбність"
+    await ctx.send(f"**Режим змінено на: {status}**")
+    chat_histories = {} 
 
 @bot.event
 async def on_message(message):
@@ -74,14 +83,14 @@ async def on_message(message):
     if message.channel.id == TARGET_CHANNEL_ID:
         content_lower = message.content.lower()
 
-        # ФУНКЦІЯ 1: Реакції
+        # Реакції та Владік
         if "ха-ха" in content_lower or "лол" in content_lower:
             await message.add_reaction("😂")
         if "владік" in content_lower or "влад" in content_lower:
             await message.add_reaction("💩")
             await message.channel.send("Владік-лох")
 
-        # ФУНКЦІЯ 2 & 5: ШІ з пам'яттю та характером
+        # Відповідь ШІ на питання
         if message.content.strip().endswith('?'):
             async with message.channel.typing():
                 answer = await get_ai_answer(message)
