@@ -1,14 +1,12 @@
+import os
 import discord
 from discord.ext import commands
 import google.generativeai as genai
-import threading
-import asyncio
 
-# --- НАЛАШТУВАННЯ ---
-TARGET_CHANNEL_ID = 1316723939896066087 
-DISCORD_TOKEN = 'MTQ3MzQ2Mjc4NDU5NDI4MDY3Mw.Gt5UfF.oH-l_7bYnsfoKI0wUjbi5h4JVGo2FmmKDXkd28'
-GEMINI_API_KEY = 'AIzaSyA79btwBHRXcamgw_FkXxYDOuBQylp4YTI'
-# ---------------------
+# ТЕПЕР БОТ БЕРЕ ДАНІ З НАЛАШТУВАНЬ ХМАРИ (Environment Variables)
+DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+TARGET_CHANNEL_ID = 1316723939896066087
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('models/gemini-flash-latest')
@@ -91,5 +89,6 @@ async def on_message(message):
         print("Ви: ", end="", flush=True)
 
     await bot.process_commands(message)
+
 
 bot.run(DISCORD_TOKEN)
