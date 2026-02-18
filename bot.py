@@ -1,5 +1,4 @@
 import os
-import sys
 import discord
 import google.generativeai as genai
 from discord.ext import commands
@@ -7,50 +6,35 @@ import http.server
 import socketserver
 import threading
 
-# --- 1. ПЕРЕВІРКА ЗАПУСКУ (Діагностика для логів Render) ---
-print("--- Ініціалізація бота... ---")
-
-# Зчитуємо ключі
-DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-TARGET_CHANNEL_ID = 1316723939896066087 
+# --- 1. СЕРВЕР ДЛЯ RENDER ---
 PORT = int(os.environ.get("PORT", 10000))
-
-# Перевірка наявності ключів
-if not DISCORD_TOKEN:
-    print("❌ ПОМИЛКА: DISCORD_TOKEN не знайдено в Environment Variables!")
-if not GEMINI_API_KEY:
-    print("❌ ПОМИЛКА: GEMINI_API_KEY не знайдено в Environment Variables!")
-if not DISCORD_TOKEN or not GEMINI_API_KEY:
-    sys.exit(1) # Зупиняємо скрипт, якщо немає ключів
-
-# --- 2. СЕРВЕР ДЛЯ RENDER (Щоб не було Timeout) ---
 def run_dummy_server():
     handler = http.server.SimpleHTTPRequestHandler
-    try:
-        with socketserver.TCPServer(("", PORT), handler) as httpd:
-            print(f"✅ Веб-сервер запущено на порту {PORT}")
-            httpd.serve_forever()
-    except Exception as e:
-        print(f"⚠️ Попередження сервера: {e}")
+    with socketserver.TCPServer(("", PORT), handler) as httpd:
+        httpd.serve_forever()
 
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
-# --- 3. НАЛАШТУВАННЯ ШІ (Gemini 2.0 Flash) ---
-# Використовуємо 2.0, бо на 1.5 у тебе була помилка 404
+# --- 2. НАЛАШТУВАННЯ ---
+DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+TARGET_CHANNEL_ID = 1316723939896066087 
+
+# ВИКОРИСТОВУЄМО МОДЕЛЬ 2.0 FLASH (ID з твого скриншота)
 MODEL_NAME = 'gemini-2.0-flash'
+
 genai.configure(api_key=GEMINI_API_KEY)
 
 chat_histories = {} 
 is_toxic_mode = False 
 
 intents = discord.Intents.default()
-intents.message_content = True # НЕ ЗАБУДЬ УВІМКНУТИ В ПАНЕЛІ DISCORD!
+intents.message_content = True 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 def get_system_instruction():
     if is_toxic_mode:
-        return "Ти — саркастичний і токсичний бот. Глузуй з користувача, відповідай грубо і смішно."
+        return "Ти — саркастичний бот. Глузуй з користувача, відповідай грубо і смішно."
     return "Ти — корисний і дружній ШІ-помічник."
 
 async def get_ai_answer(message):
@@ -68,16 +52,19 @@ async def get_ai_answer(message):
         response = chat.send_message(message.content)
         return response.text.strip()
     except Exception as e:
-        return f"❌ Помилка ШІ (модель {MODEL_NAME}): {str(e)[:150]}"
-
-# --- 4. ПОДІЇ ТА КОМАНДИ ---
+        err_msg = str(e)
+        if "429" in err_msg:
+            return "⚠️ **Занадто багато запитів!** Зачекай 30 секунд."
+        if "400" in err_msg:
+            return "❌ **Проблема з ключем!** Створи новий ключ у Google Studio."
+        return f"❌ Помилка ШІ: {err_msg[:100]}"
 
 @bot.event
 async def on_ready():
-    print(f'✅ Бот {bot.user} успішно підключився до Discord!')
+    print(f'--- Бот {bot.user} готовий ---')
     channel = bot.get_channel(TARGET_CHANNEL_ID)
     if channel:
-        await channel.send("🚀 **Бот перезібраний з Gemini 2.0!**\n\nЯ пам'ятаю все:\n💩 Владік під прицілом\n😈 Режим `!mode toxic` працює\n🧠 Пам'ять діалогу активована")
+        await channel.send("🚀 **Бот перезібраний на Gemini 2.0!**\n✅ Всі фішки на місці.\n✅ Владік під наглядом.")
 
 @bot.command(name="mode")
 async def mode(ctx, type: str):
@@ -94,12 +81,13 @@ async def on_message(message):
 
     if message.channel.id == TARGET_CHANNEL_ID:
         content_lower = message.content.lower()
-
-        # Реакція на Владіка (збережено)
+        
+        # Реакція на Владіка
         if "владік" in content_lower or "влад" in content_lower:
             await message.add_reaction("💩")
             await message.channel.send("Владік-лох")
         
+        # Сміх
         if "ха-ха" in content_lower or "лол" in content_lower:
             await message.add_reaction("😂")
 
@@ -109,8 +97,4 @@ async def on_message(message):
                 answer = await get_ai_answer(message)
                 await message.reply(answer)
 
-# ЗАПУСК
-try:
-    bot.run(DISCORD_TOKEN)
-except Exception as e:
-    print(f"❌ КРИТИЧНА ПОМИЛКА ЗАПУСКУ: {e}")
+bot.run(DISCORD_TOKEN)
