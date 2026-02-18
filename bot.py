@@ -18,7 +18,7 @@ threading.Thread(target=run_dummy_server, daemon=True).start()
 # --- 2. НАЛАШТУВАННЯ ---
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-TARGET_CHANNEL_ID = 1316723939896066087 
+TARGET_CHANNEL_ID = 1467839761912827975 
 
 # ВИКОРИСТОВУЄМО МОДЕЛЬ 2.0 FLASH (ID з твого скриншота)
 MODEL_NAME = 'gemini-2.0-flash'
@@ -98,3 +98,4 @@ async def on_message(message):
                 await message.reply(answer)
 
 bot.run(DISCORD_TOKEN)
+
